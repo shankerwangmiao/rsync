@@ -94,6 +94,7 @@ extern char backup_dir_buf[MAXPATHLEN];
 extern char *basis_dir[MAX_BASIS_DIRS+1];
 extern struct file_list *first_flist;
 extern filter_rule_list daemon_filter_list;
+extern int only_send_attrs;
 
 uid_t our_uid;
 gid_t our_gid;

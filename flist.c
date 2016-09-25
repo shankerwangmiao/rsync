@@ -82,6 +82,8 @@ extern struct chmod_mode_struct *chmod_modes;
 extern filter_rule_list filter_list;
 extern filter_rule_list daemon_filter_list;
 
+extern int only_send_attrs;
+
 #ifdef ICONV_OPTION
 extern int filesfrom_convert;
 extern iconv_t ic_send, ic_recv;
@@ -1307,6 +1309,9 @@ struct file_struct *make_file(const char *fname, struct file_list *flist,
 	if (st.ST_MTIME_NSEC && protocol_version >= 31)
 		extra_len += EXTRA_LEN;
 #endif
+  if(S_ISREG(st.st_mode) && am_sender && only_send_attrs){
+		st.st_size = 8;
+	}
 #if SIZEOF_CAPITAL_OFF_T >= 8
 	if (st.st_size > 0xFFFFFFFFu && S_ISREG(st.st_mode))
 		extra_len += EXTRA_LEN;

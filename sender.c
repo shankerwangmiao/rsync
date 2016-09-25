@@ -46,6 +46,7 @@ extern int write_batch;
 extern int file_old_total;
 extern struct stats stats;
 extern struct file_list *cur_flist, *first_flist, *dir_flist;
+extern int only_send_attrs;
 
 BOOL extra_flist_sending_enabled;
 
@@ -364,7 +365,25 @@ void send_files(int f_in, int f_out)
 			close(fd);
 			exit_cleanup(RERR_FILEIO);
 		}
-
+		if(only_send_attrs){
+			close(fd);
+			char temp_file[]="tmp_XXXXXX";
+			if((fd = mkstemp(temp_file))==-1){
+				rsyserr(FERROR_XFER, errno, "mkstemp failed");
+				free_sums(s);
+				exit_cleanup(RERR_FILEIO);
+			}
+			unlink(temp_file);
+			unsigned char b[8];
+			uint64_t file_size = st.st_size;
+			for (size_t i = 0; i < 8; i++) {
+				b[i] = file_size & 0xff;
+				file_size >>= 8;
+			}
+			write(fd, b, 8);
+			lseek(fd, 0, SEEK_SET);
+			st.st_size = 8;
+		}
 		if (st.st_size) {
 			int32 read_size = MAX(s->blength * 3, MAX_MAP_SIZE);
 			mbuf = map_file(fd, st.st_size, read_size, s->blength);
