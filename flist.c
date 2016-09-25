@@ -221,6 +221,35 @@ static int readlink_stat(const char *path, STRUCT_STAT *stp, char *linkbuf)
 #endif
 }
 
+static int readlink_stat_realinfo(const char *path, STRUCT_STAT *stp, char *linkbuf)
+{
+	int ret = readlink_stat(path, stp, linkbuf);
+	if(ret != 0){
+		return ret;
+	}
+	if( S_ISREG(stp->st_mode) && am_daemon && am_sender && lp_real_file_prefix(module_id) ){
+		int fd = open(path, O_RDONLY);
+		if(fd < 0){
+			return -1;
+		}
+		unsigned char buf[8];
+		uint64_t file_size = 0;
+		ret = read(fd, buf, 8);
+		close(fd);
+		if(ret < 0){
+			return -1;
+		} else if(ret != 8){
+			errno = EINVAL;
+			return -1;
+		}
+		for (size_t i = 0; i < 8; i++) {
+			file_size += buf[i] * ((uint64_t) 1 << i * 8);
+		}
+		stp->st_size = file_size;
+	}
+	return 0;
+}
+
 int link_stat(const char *path, STRUCT_STAT *stp, int follow_dirlinks)
 {
 #ifdef SUPPORT_LINKS
@@ -1173,7 +1202,7 @@ struct file_struct *make_file(const char *fname, struct file_list *flist,
 		 * dir, or a request to delete a specific file. */
 		st = *stp;
 		*linkname = '\0'; /* make IBM code checker happy */
-	} else if (readlink_stat(thisname, &st, linkname) != 0) {
+	} else if (readlink_stat_realinfo(thisname, &st, linkname) != 0) {
 		int save_errno = errno;
 		/* See if file is excluded before reporting an error. */
 		if (filter_level != NO_FILTERS
@@ -1309,7 +1338,7 @@ struct file_struct *make_file(const char *fname, struct file_list *flist,
 	if (st.ST_MTIME_NSEC && protocol_version >= 31)
 		extra_len += EXTRA_LEN;
 #endif
-  if(S_ISREG(st.st_mode) && am_sender && only_send_attrs){
+	if(S_ISREG(st.st_mode) && am_sender && only_send_attrs){
 		st.st_size = 8;
 	}
 #if SIZEOF_CAPITAL_OFF_T >= 8

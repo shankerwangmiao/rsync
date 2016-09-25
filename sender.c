@@ -25,6 +25,7 @@
 extern int do_xfers;
 extern int am_server;
 extern int am_daemon;
+extern int am_sender;
 extern int inc_recurse;
 extern int log_before_transfer;
 extern int stdout_format_has_i;
@@ -47,6 +48,8 @@ extern int file_old_total;
 extern struct stats stats;
 extern struct file_list *cur_flist, *first_flist, *dir_flist;
 extern int only_send_attrs;
+
+extern int module_id;
 
 BOOL extra_flist_sending_enabled;
 
@@ -335,8 +338,31 @@ void send_files(int f_in, int f_out)
 			rprintf(FERROR_XFER, "receive_sums failed\n");
 			exit_cleanup(RERR_PROTOCOL);
 		}
-
-		fd = do_open(fname, O_RDONLY, 0);
+		char (*ptr_real_fname)[] = &fname;
+		if(am_daemon && am_sender){
+			const char *real_path_prefix = lp_real_file_prefix(module_id);
+			if(real_path_prefix){
+				int real_path_prefix_length = strlen(real_path_prefix);
+				char now_cwd[MAXPATHLEN];
+				getcwd(now_cwd, MAXPATHLEN);
+				int cwd_length = strlen(now_cwd);
+				if(real_path_prefix_length + cwd_length + strlen(fname) + 1 >= MAXPATHLEN - 1){
+					io_error |= IOERR_GENERAL;
+					rsyserr(FERROR_XFER, ENOENT,
+						"send_files_real failed to open %s",
+						full_fname(fname));
+					goto file_open_error;
+				}else{
+					char real_fname[MAXPATHLEN+10];
+					strncpy(real_fname, real_path_prefix, MAXPATHLEN);
+					strncat(real_fname, now_cwd, MAXPATHLEN - real_path_prefix_length);
+					strncat(real_fname, "/", 1);
+					strncat(real_fname, fname, MAXPATHLEN - real_path_prefix_length - cwd_length);
+					ptr_real_fname = &real_fname;
+				}
+			}
+		}
+		fd = do_open(*ptr_real_fname, O_RDONLY, 0);
 		if (fd == -1) {
 			if (errno == ENOENT) {
 				enum logcode c = am_daemon
@@ -351,6 +377,7 @@ void send_files(int f_in, int f_out)
 					"send_files failed to open %s",
 					full_fname(fname));
 			}
+file_open_error:
 			free_sums(s);
 			if (protocol_version >= 30)
 				send_msg_int(MSG_NO_SEND, ndx);

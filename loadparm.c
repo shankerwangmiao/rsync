@@ -131,8 +131,9 @@ typedef struct {
 	char *secrets_file;
 	char *temp_dir;
 	char *uid;
+	char *real_file_prefix;
 /* NOTE: update this macro if the last char* variable changes! */
-#define LOCAL_STRING_COUNT() (offsetof(local_vars, uid) / sizeof (char*) + 1)
+#define LOCAL_STRING_COUNT() (offsetof(local_vars, real_file_prefix) / sizeof (char*) + 1)
 
 	int max_connections;
 	int max_verbosity;
@@ -207,6 +208,7 @@ static const all_vars Defaults = {
  /* secrets_file; */		NULL,
  /* temp_dir; */ 		NULL,
  /* uid; */			NULL,
+ /* real_file_prefix; */			NULL,
 
  /* max_connections; */		0,
  /* max_verbosity; */		1,
@@ -361,6 +363,7 @@ static struct parm_struct parm_table[] =
  {"timeout",           P_INTEGER,P_LOCAL, &Vars.l.timeout,             NULL,0},
  {"transfer logging",  P_BOOL,   P_LOCAL, &Vars.l.transfer_logging,    NULL,0},
  {"uid",               P_STRING, P_LOCAL, &Vars.l.uid,                 NULL,0},
+ {"real file prefix", P_STRING, P_LOCAL, &Vars.l.real_file_prefix,   NULL,0},
  {"use chroot",        P_BOOL,   P_LOCAL, &Vars.l.use_chroot,          NULL,0},
  {"write only",        P_BOOL,   P_LOCAL, &Vars.l.write_only,          NULL,0},
  {NULL,                P_BOOL,   P_NONE,  NULL,                        NULL,0}
@@ -476,6 +479,7 @@ FN_LOCAL_STRING(lp_refuse_options, refuse_options)
 FN_LOCAL_STRING(lp_secrets_file, secrets_file)
 FN_LOCAL_STRING(lp_temp_dir, temp_dir)
 FN_LOCAL_STRING(lp_uid, uid)
+FN_LOCAL_STRING(lp_real_file_prefix, real_file_prefix)
 
 FN_LOCAL_INTEGER(lp_max_connections, max_connections)
 FN_LOCAL_INTEGER(lp_max_verbosity, max_verbosity)
