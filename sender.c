@@ -189,6 +189,51 @@ static void write_ndx_and_attrs(int f_out, int ndx, int iflags,
 #endif
 }
 
+const char *get_real_filename(const char *fname)
+{
+
+	extern char *module_dir;
+	extern unsigned int module_dirlen;
+	extern char curr_dir[MAXPATHLEN];
+
+	static char real_fname[MAXPATHLEN+10];
+	const char *real_path_prefix = lp_real_file_prefix(module_id);
+	if(real_path_prefix){
+		char now_cwd[MAXPATHLEN];
+		char *now_relative_cwd;
+		strlcpy(now_cwd, curr_dir, MAXPATHLEN);
+		size_t cwd_length = strlen(now_cwd);
+		if(cwd_length < module_dirlen){
+			return NULL;
+		}
+		if(strncmp(now_cwd, module_dir, module_dirlen) != 0){
+			return NULL;
+		}
+		if(module_dirlen > 0 && module_dir[module_dirlen - 1] == '/'){
+			now_relative_cwd = now_cwd + module_dirlen;
+		}else if(now_cwd[module_dirlen] == '/'){
+			now_relative_cwd = now_cwd + module_dirlen + 1;
+		}else if(now_cwd[module_dirlen] == '\0'){
+			now_relative_cwd = now_cwd + module_dirlen;
+		}else{
+			return NULL;
+		}
+		int ret;
+		ret = pathjoin(real_fname, MAXPATHLEN, real_path_prefix, now_relative_cwd);
+		if(ret >= MAXPATHLEN){
+			return NULL;
+		}
+		strlcpy(now_cwd, real_fname, MAXPATHLEN);
+		ret = pathjoin(real_fname, MAXPATHLEN, now_cwd, fname);
+		if(ret >= MAXPATHLEN){
+			return NULL;
+		}
+		return real_fname;
+	}else{
+		return fname;
+	}
+}
+
 void send_files(int f_in, int f_out)
 {
 	int fd = -1;
@@ -338,31 +383,17 @@ void send_files(int f_in, int f_out)
 			rprintf(FERROR_XFER, "receive_sums failed\n");
 			exit_cleanup(RERR_PROTOCOL);
 		}
-		char (*ptr_real_fname)[] = &fname;
 		if(am_daemon && am_sender){
-			const char *real_path_prefix = lp_real_file_prefix(module_id);
-			if(real_path_prefix){
-				int real_path_prefix_length = strlen(real_path_prefix);
-				char now_cwd[MAXPATHLEN];
-				getcwd(now_cwd, MAXPATHLEN);
-				int cwd_length = strlen(now_cwd);
-				if(real_path_prefix_length + cwd_length + strlen(fname) + 1 >= MAXPATHLEN - 1){
-					io_error |= IOERR_GENERAL;
-					rsyserr(FERROR_XFER, ENOENT,
-						"send_files_real failed to open %s",
-						full_fname(fname));
-					goto file_open_error;
-				}else{
-					char real_fname[MAXPATHLEN+10];
-					strncpy(real_fname, real_path_prefix, MAXPATHLEN);
-					strncat(real_fname, now_cwd, MAXPATHLEN - real_path_prefix_length);
-					strncat(real_fname, "/", 1);
-					strncat(real_fname, fname, MAXPATHLEN - real_path_prefix_length - cwd_length);
-					ptr_real_fname = &real_fname;
-				}
+			const char *real_file_name = get_real_filename(fname);
+			if (real_file_name == NULL) {
+				fd = -1;
+				errno = EINVAL;
+			}else{
+				fd = do_open(real_file_name, O_RDONLY, 0);
 			}
+		}else{
+			fd = do_open(fname, O_RDONLY, 0);
 		}
-		fd = do_open(*ptr_real_fname, O_RDONLY, 0);
 		if (fd == -1) {
 			if (errno == ENOENT) {
 				enum logcode c = am_daemon
@@ -377,7 +408,6 @@ void send_files(int f_in, int f_out)
 					"send_files failed to open %s",
 					full_fname(fname));
 			}
-file_open_error:
 			free_sums(s);
 			if (protocol_version >= 30)
 				send_msg_int(MSG_NO_SEND, ndx);
