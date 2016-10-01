@@ -437,7 +437,7 @@ void send_files(int f_in, int f_out)
 				b[i] = file_size & 0xff;
 				file_size >>= 8;
 			}
-			write(fd, b, 8);
+			write_buf(fd, (const char *)b, 8);
 			lseek(fd, 0, SEEK_SET);
 			st.st_size = 8;
 		}
